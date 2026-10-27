@@ -1,0 +1,9 @@
+# Render (https://render.com) 用の設定。リポジトリをつなぐと、この内容でWebサービスが作られる
+services:
+  - type: web
+    name: koma-royale
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
