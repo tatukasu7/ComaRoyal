@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>駒ロワ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+/* 夜の対局室: 漆黒の部屋に榧の盤が一枚。主役は盤、UIは脇に控える。単一テーマ(暗) */
+:root{
+  --room:#17130f; --room-2:#221c16; --room-3:#2e261e; --line-ui:#3d3329;
+  --ink:#efe5d3; --muted:#a3947e;
+  --board:#d6a85e; --board-2:#c79849; --board-edge:#6e4a22; --grid:rgba(52,34,14,.55);
+  --piece:#f4e3ba; --piece-2:#dfc38a; --piece-ink:#1d150c; --promo:#b3311f;
+  --you:#6fa3e0; --you-ink:#0f1b2a; --reach:#1f5f86;
+  --fall:rgba(175,48,30,.2); --threat:rgba(170,40,25,.15); --threat2:rgba(170,40,25,.32); --warn:rgba(175,48,30,.5); --dead:#1c1612;
+  --f-koma:'Shippori Mincho B1','Hiragino Mincho ProN','Yu Mincho',serif;
+  --f-ui:'Zen Kaku Gothic New','Hiragino Sans','Yu Gothic',sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--room);color:var(--ink);font-family:var(--f-ui);line-height:1.6}
+.wrap{max-width:1060px;margin:0 auto;padding-block:18px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 20px}
+h1{font-family:var(--f-koma);font-weight:800;font-size:2.4rem;line-height:1;margin:0;letter-spacing:.06em}
+h1 small{display:block;font-family:var(--f-ui);font-weight:400;font-size:.78rem;letter-spacing:.14em;color:var(--muted);margin-top:8px}
+.stats{display:flex;gap:18px;font-variant-numeric:tabular-nums}
+.stat{display:grid;gap:0}
+.stat span{font-size:.68rem;color:var(--muted);letter-spacing:.12em}
+.stat b{font-size:1.15rem}
+.stat b.hot{color:#e2826d}
+@media(min-width:880px){.wrap{grid-template-columns:minmax(0,560px) minmax(0,1fr);align-items:start} header{grid-column:1/-1}}
+
+.stage-col{min-width:0;max-width:560px}
+.stage{position:relative;width:100%;max-width:560px}
+.frame{background:var(--board-edge);padding:8px;border-radius:3px;box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.board{position:relative;aspect-ratio:1;container-type:inline-size;background:
+  repeating-linear-gradient(87deg,rgba(120,70,20,.07) 0 2px,transparent 2px 11px),
+  linear-gradient(160deg,var(--board),var(--board-2))}
+.grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(11,1fr);grid-template-rows:repeat(11,1fr);border-left:1px solid var(--grid);border-top:1px solid var(--grid)}
+.cell{appearance:none;background:transparent;border:0;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:0;margin:0;position:relative;cursor:pointer;min-width:0}
+.cell:focus-visible{outline:2px solid var(--you);outline-offset:-2px;z-index:3}
+.cell.fall{background:var(--fall)}
+.pickrow{color:var(--ink);background:var(--room-3);border-radius:5px;padding:8px 10px}
+.toggle .rname{display:block;color:var(--ink)}
+.toggle input{flex:none;align-self:flex-start;margin-top:4px}
+.rfoot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.8rem;color:var(--muted)}
+.rfoot span{flex:1;min-width:8em}
+.rfoot .btn{padding:6px 10px;font-size:.8rem}
+.baretag{color:var(--you)}
+.aisel{align-items:center;justify-content:space-between}
+.aisel select{font:inherit;font-size:.88rem;color:var(--ink);background:var(--room);border:1px solid var(--line-ui);border-radius:5px;padding:6px 8px;flex:none}
+.ofield{display:grid;gap:4px;font-size:.8rem;color:var(--muted)}
+.ofield input,.orow input{font:inherit;font-size:.9rem;color:var(--ink);background:var(--room);border:1px solid var(--line-ui);border-radius:5px;padding:8px 10px;min-width:0}
+.orow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.orow input{flex:1}
+.orow .btn{padding:8px 14px}
+.onote{margin:0;font-size:.78rem;color:var(--muted)}
+.oerr{margin:0;font-size:.8rem;color:#ff9b85}
+.wait{margin:0;font-size:.85rem;color:var(--muted)}
+.ocode{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ocode span{font-size:.75rem;color:var(--muted)}
+.ocode b{font-family:ui-monospace,Menlo,monospace;font-size:1.4rem;letter-spacing:.15em;color:var(--ink)}
+.omem{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.86rem}
+.omem li{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.omem em{font-style:normal;font-size:.7rem;color:var(--muted);border:1px solid var(--line-ui);border-radius:3px;padding:0 5px}
+.ost{margin-left:auto;font-size:.78rem;color:var(--muted)}
+.ost i{font-style:normal}
+.ost .ok{color:#8fd4a8}
+.ost .out{color:#e2826d}
+.olink{word-break:break-all;user-select:all}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-size:14px}
+.ocount{margin:0;font-size:.9rem;font-variant-numeric:tabular-nums;color:var(--ink)}
+.cell.throne{box-shadow:inset 0 0 0 3px #b8892a,inset 0 0 0 999px rgba(232,198,106,.28)}
+.sw.tr{box-shadow:inset 0 0 0 2px #b8892a,inset 0 0 0 99px rgba(232,198,106,.28)}
+button.promo-btn{display:grid;gap:2px;text-align:left;padding:10px 12px;border-color:var(--promo);background:rgba(179,49,31,.18)}
+button.promo-btn b{color:#ff9b85;font-size:1rem}
+button.promo-btn span{font-size:.78rem;color:var(--muted)}
+.rbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-bottom:10px;background:var(--room-2);border:1px solid var(--line-ui);border-radius:6px;padding:8px 10px}
+.rtitle{font-weight:700;font-size:.85rem;margin-right:4px}
+.rbar input[type=range]{flex:1;min-width:100px;accent-color:var(--you)}
+.rpos{font-size:.82rem;font-variant-numeric:tabular-nums;color:var(--ink);min-width:7em}
+.rhelp{flex-basis:100%;margin:0;font-size:.75rem;color:var(--muted)}
+button.btn.sm{padding:5px 10px;font-size:.8rem}
+.intent{position:absolute;left:0;top:0;width:calc(100%/11);height:calc(100%/11);transform:translate(calc(var(--x)*100%),calc(var(--y)*100%));border:2px dashed var(--pc);border-radius:3px;box-sizing:border-box}
+.intent.tag{border:0}
+.intent.tag i{position:absolute;left:-2px;bottom:-2px;font-style:normal;font-size:calc(100cqi/11*.24);font-weight:700;background:var(--pc);color:#140f0a;border-radius:3px;padding:1px 3px;line-height:1.1}
+.games{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:260px;overflow:auto}
+.games li{display:grid;gap:2px;border-bottom:1px solid var(--line-ui);padding-bottom:8px}
+.games li:last-child{border-bottom:0;padding-bottom:0}
+.gmain{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-size:.88rem}
+.gmain span{color:var(--muted);font-size:.8rem}
+.gwin{color:#e8c66a}
+.gsub{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;font-size:.75rem;color:var(--muted)}
+.gbtns{display:flex;gap:6px}
+.gempty{color:var(--muted);font-size:.82rem;border:0!important}
+.verdict{margin-top:8px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;color:var(--ink);font-size:.88rem}
+.verdict b{font-size:1rem;padding:1px 8px;border-radius:3px}
+.verdict span{color:var(--muted);font-size:.8rem}
+.verdict.win b{background:#2f5a3a;color:#cfeedd}
+.verdict.lose b{background:#6a2a1f;color:#ffd9cf}
+.verdict.tie b{background:var(--room-3);color:var(--ink)}
+.vnote{font-size:.76rem;color:var(--muted);margin-top:2px}
+.pc.bare::after{content:"素";position:absolute;right:2%;top:0;font-size:calc(100cqi/11*.22);font-weight:700;color:var(--you-ink);background:var(--board);border:1px solid var(--board-edge);border-radius:50%;width:1.5em;height:1.5em;display:grid;place-items:center;line-height:1}
+.zonebar{display:flex;align-items:center;gap:12px;margin-bottom:10px;font-size:.85rem}
+.zonebar .pips{display:flex;gap:4px;flex:1;max-width:180px}
+.zonebar .pip{flex:1;height:8px;border-radius:2px;background:var(--room-3)}
+.zonebar .pip.on{background:var(--muted)}
+.zonebar.hot .pip.on{background:#e2826d}
+.zonebar b{font-size:1.1rem;font-variant-numeric:tabular-nums}
+.zonebar.hot b{color:#e2826d}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:.78rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:2px;background:var(--board);position:relative;flex:none}
+.sw.mv::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--reach)}
+.sw.atk::after{content:"";position:absolute;inset:1px;border-radius:50%;border:2px solid var(--reach)}
+.sw.far::after{content:"";position:absolute;inset:3px;border-radius:50%;border:2px dashed var(--reach)}
+.sw.th{box-shadow:inset 0 0 0 99px var(--threat2)}
+.sw.fl{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,var(--board) 3px 7px)}
+.sw.lt{background:var(--piece);opacity:.55;clip-path:polygon(50% 0,88% 18%,100% 100%,0 100%,12% 18%)}
+.banner{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);background:var(--promo);color:#fff4e8;font-family:var(--f-koma);font-weight:800;font-size:1.5rem;padding:10px 22px;border-radius:4px;z-index:4;pointer-events:none;white-space:nowrap;animation:flash 1.6s forwards}
+@keyframes flash{0%{opacity:0;transform:translate(-50%,-50%) scale(.9)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0}}
+.howto{text-align:left;margin:0;padding-left:1.2em;display:grid;gap:6px;font-size:.88rem;color:var(--ink)}
+.howto b{color:var(--you)}
+.help{appearance:none;font:inherit;font-size:.8rem;color:var(--muted);background:none;border:1px solid var(--line-ui);border-radius:20px;padding:4px 12px;cursor:pointer;align-self:center}
+.cell.th1{box-shadow:inset 0 0 0 999px var(--threat)}
+.cell.th2{box-shadow:inset 0 0 0 999px var(--threat2)}
+.cell.warn{background:repeating-linear-gradient(45deg,var(--warn) 0 3px,transparent 3px 8px)}
+.cell.dead{background:var(--dead);cursor:default}
+.cell.hint::after{content:"";position:absolute;inset:38%;border-radius:50%;background:var(--reach)}
+.cell.atk::after{inset:4%;background:transparent;border:2px solid var(--reach)}
+.cell.far::after{background:transparent;border:2px dashed var(--reach)}
+.cell.far.atk::after{border-style:dashed}
+.cell.sel::before{content:"";position:absolute;inset:1px;border:2px solid var(--you);border-radius:2px;z-index:1}
+.loot{position:absolute;inset:20%;display:grid;place-items:center;background:var(--piece);opacity:.55;color:var(--piece-ink);font-family:var(--f-koma);font-weight:800;font-size:calc(100cqi/11*.36);clip-path:polygon(50% 0,88% 18%,100% 100%,0 100%,12% 18%)}
+.hoshi{position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(52,34,14,.8);pointer-events:none}
+
+.layer{position:absolute;inset:0;pointer-events:none}
+.pc{position:absolute;left:0;top:0;width:calc(100%/11);height:calc(100%/11);display:grid;place-items:center;transform:translate(calc(var(--x)*100%),calc(var(--y)*100%));transition:transform .38s cubic-bezier(.3,.7,.3,1),opacity .45s;filter:drop-shadow(0 2px 1px rgba(0,0,0,.5))}
+.pc .k{position:relative;width:84%;height:90%;display:grid;place-items:center;background:linear-gradient(var(--piece),var(--piece-2));color:var(--piece-ink);font-family:var(--f-koma);font-weight:800;font-size:calc(100cqi/11*.5);line-height:1;clip-path:polygon(50% 0,88% 18%,100% 100%,0 100%,12% 18%);transform:rotate(var(--deg));transition:transform .3s}
+.pc .k span{transform:translateY(8%)}
+.pc .k::after{content:"";position:absolute;left:0;right:0;bottom:0;height:15%;background:var(--pc)}
+.pc.promo .k{color:var(--promo)}
+.pc.me::before{content:"";position:absolute;inset:-6%;border-radius:50%;border:2px solid var(--you);box-shadow:0 0 10px var(--you)}
+.pc.gone{opacity:0}
+.pc.ghost{opacity:.45;filter:none}
+.pc.ghost::before{display:none}
+
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(15,11,8,.72);padding:16px;z-index:5}
+.card{background:var(--room-2);border:1px solid var(--line-ui);border-radius:6px;padding:20px 22px;max-width:320px;text-align:center;display:grid;gap:12px}
+.card .big{font-family:var(--f-koma);font-weight:800;font-size:2rem;line-height:1.2;text-wrap:balance}
+.card p{margin:0;color:var(--muted);font-size:.9rem}
+.row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+
+.side{display:grid;gap:16px;min-width:0}
+.panel{background:var(--room-2);border:1px solid var(--line-ui);border-radius:6px;padding:14px;display:grid;gap:12px}
+.label{font-size:.68rem;letter-spacing:.14em;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--room-3);border-radius:4px;padding:3px 9px 3px 4px;font-size:.82rem}
+.chip b{font-family:var(--f-koma);font-weight:800;background:var(--piece);color:var(--piece-ink);width:1.6em;height:1.6em;display:grid;place-items:center;border-radius:3px}
+.chip.promo b{color:var(--promo)}
+.chip.empty{color:var(--muted);padding-left:9px}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.85rem;color:var(--muted)}
+.meta strong{color:var(--ink);font-weight:700}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+button.btn{appearance:none;font:inherit;font-size:.85rem;color:var(--ink);background:var(--room-3);border:1px solid var(--line-ui);border-radius:5px;padding:9px 4px;cursor:pointer}
+button.btn:hover{border-color:var(--muted)}
+button.btn[aria-pressed="true"]{border-color:var(--you);color:var(--you)}
+button.btn:focus-visible{outline:2px solid var(--you);outline-offset:2px}
+button.go{background:var(--you);color:var(--you-ink);border-color:var(--you);font-weight:700;font-size:.95rem;padding:11px}
+button.go:disabled{opacity:.35;cursor:not-allowed}
+.selline{font-size:.88rem;min-height:1.4em}
+.toggle{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted)}
+.inspect{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line-ui);padding-top:10px}
+.inspect strong{color:var(--ink)}
+.dot{display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.log{list-style:none;margin:0;padding:0;max-height:220px;overflow:auto;font-size:.82rem;display:grid;gap:3px}
+.log li{display:flex;gap:10px}
+.log .t{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.6em;text-align:right;flex:none}
+details{background:var(--room-2);border:1px solid var(--line-ui);border-radius:6px;padding:12px 14px;font-size:.86rem}
+summary{cursor:pointer;font-weight:700}
+details ul{margin:10px 0 0;padding-left:1.2em;display:grid;gap:4px;color:var(--muted)}
+details b{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.pc,.pc .k{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>駒ロワ<small>一人一駒のバトルロイヤル</small></h1>
+    <div class="stats">
+      <div class="stat"><span>手数</span><b id="sTurn">1</b></div>
+      <div class="stat"><span>生存</span><b id="sAlive">8/8</b></div>
+      <button class="help" id="help">遊び方</button>
+    </div>
+  </header>
+
+  <div class="stage-col">
+  <div class="rbar" id="rbar" hidden>
+    <span class="rtitle">振り返り</span>
+    <button class="btn sm" id="rprev" aria-label="1手戻る">◀</button>
+    <button class="btn sm" id="rplay">再生</button>
+    <button class="btn sm" id="rnext" aria-label="1手進む">▶</button>
+    <input type="range" id="rslider" min="0" max="1" value="0" aria-label="手数">
+    <span class="rpos" id="rpos"></span>
+    <button class="btn sm" id="rclose">対局に戻る</button>
+    <p class="rhelp">枠はその手で各駒が狙ったマス。「待」は待機、「転」は向き変え。</p>
+  </div>
+  <div class="zonebar" id="zonebar"><span id="zlabel">外周が落ちるまで</span><div class="pips" id="pips"></div><b id="sShrink">-</b></div>
+  <div class="stage">
+    <div class="frame"><div class="board" id="board">
+      <div class="grid" id="grid"></div>
+      <span class="hoshi" style="left:36.36%;top:36.36%"></span><span class="hoshi" style="left:63.63%;top:36.36%"></span>
+      <span class="hoshi" style="left:36.36%;top:63.63%"></span><span class="hoshi" style="left:63.63%;top:63.63%"></span>
+      <div class="layer" id="layer"></div>
+      <div class="layer" id="intents"></div>
+    </div></div>
+    <div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+    <div id="bannerSlot"></div>
+  </div>
+  <div class="legend">
+    <span><i class="sw mv"></i>動ける</span>
+    <span><i class="sw atk"></i>攻撃できる</span>
+    <span><i class="sw far"></i>読みの一手(途中の駒が残ると手前で止まる)</span>
+    <span><i class="sw th"></i>敵が届く</span>
+    <span><i class="sw fl"></i>次に落ちる外周(3手いると成る)</span>
+    <span><i class="sw tr"></i>玉座(決戦場で3手いると成る)</span>
+    <span><i class="sw lt"></i>拾える動き</span>
+  </div>
+  </div>
+
+  <div class="side">
+    <section class="panel">
+      <div>
+        <div class="label">あなたの動き</div>
+        <div class="chips" id="moves"></div>
+      </div>
+      <div class="meta" id="meta"></div>
+      <div class="acts">
+        <button class="btn" id="bL">左を向く</button>
+        <button class="btn" id="bR">右を向く</button>
+        <button class="btn" id="bU">反転</button>
+        <button class="btn" id="bW">待機</button>
+      </div>
+      <button class="btn promo-btn" id="bPromo" hidden></button>
+      <div class="selline" id="selline"></div>
+      <label class="toggle pickrow" id="pickrow" hidden><input type="checkbox" id="pick"> <span id="picktxt"></span></label>
+      <button class="btn go" id="go" disabled>この手で決定</button>
+      <label class="toggle"><input type="checkbox" id="danger" checked> 敵が届くマスを赤く表示</label>
+      <div class="inspect" id="inspect"></div>
+    </section>
+    <section class="panel">
+      <div class="label">オンライン対戦</div>
+      <div id="onl"></div>
+    </section>
+    <section class="panel">
+      <div class="label">試験ルール</div>
+      <label class="toggle aisel"><span><b class="rname">CPUの強さ</b>つよいは相手の手を予想して、同時に動いた結果を何通りも試してから指す。</span><select id="rAi"><option value="easy">やさしい</option><option value="normal">ふつう</option><option value="hard">つよい</option></select></label>
+      <label class="toggle"><input type="checkbox" id="rPawn"> <span><b class="rname">歩は轢けない</b>何も覚えていない歩は、同時進入で必ず勝つ。拾うかは選べる。</span></label>
+      <label class="toggle"><input type="checkbox" id="rPass"> <span><b class="rname">読みで突破</b>飛・角・香は駒の先まで狙える。通り道の駒がその場に残っていたら、その手前で止まる。</span></label>
+      <label class="toggle"><input type="checkbox" id="rFinal"> <span><b class="rname">決戦場</b>盤は3×3で止まり、24手目から1マスずつ落ちる。同時進入で強さが互角なら撃破数で決める。</span></label>
+      <label class="toggle"><input type="checkbox" id="rPromo"> <span><b class="rname">将棋の成り</b>成ると歩→と、香→杏、桂→圭、銀→全(すべて金の動き)、角→馬、飛→龍になる。成るかどうか、いつ成るかは選べる。</span></label>
+      <label class="toggle"><input type="checkbox" id="rThrone"> <span><b class="rname">玉座</b>決戦場では、成れる場所が中央の1マスだけになる(決戦場がオンの時のみ)。</span></label>
+      <div class="rfoot"><span id="rnote"></span><button class="btn" id="rBase">基本ルールに戻す</button><button class="btn" id="newg">新しい局</button></div>
+    </section>
+    <section class="panel">
+      <div class="label">対局の記録</div>
+      <ul class="games" id="games"></ul>
+    </section>
+    <section class="panel">
+      <div class="label">棋譜</div>
+      <ul class="log" id="log"></ul>
+    </section>
+    <details>
+      <summary>ルール</summary>
+      <ul>
+        <li>全員<b>歩</b>から始まる。全員が同時に1手ずつ動く。</li>
+        <li>駒には<b>向き</b>がある。動きは向きが基準。向きを変えると1手消費。</li>
+        <li>盤上の薄い駒を踏むと、その<b>動きを習得</b>(2枠まで。満杯なら弱い枠と入れ替え)。</li>
+        <li>相手のマスに入り、相手がそこに留まっていたら<b>取れる</b>。相手が動いていれば空振り。</li>
+        <li>同じマスに同時に入ったら、動きの数が多い方が勝つ(同数なら価値の合計)。完全に互角なら両方弾かれる。</li>
+        <li>取った相手の動きを1つ奪う。</li>
+        <li>6・10・14・18・22手目の後に外周が<b>盤外</b>になる。そこにいたら脱落。</li>
+        <li>次に落ちる外周(赤い帯)に3手連続でいると<b>成る</b>。歩が王の動き(全方向1マス)になる。</li>
+        <li>最後の一駒が勝ち。</li>
+      </ul>
+    </details>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+const pieceEls={}; let ghostEl=null; let autoTimer=null;
+
+const $=s=>document.querySelector(s);
+
+const RULE_KEY='komaroyale-rules';
+const RULE_IDS=[['#rPawn','pawn'],['#rPass','pass'],['#rFinal','final'],['#rPromo','promo'],['#rThrone','throne']];
+let nextRules={pawn:true,final:true,pass:true,promo:true,throne:true,ai:'normal'};
+try{const r=JSON.parse(localStorage.getItem(RULE_KEY)||'null');if(r){for(const [,k] of RULE_IDS)if(r[k]!==undefined)nextRules[k]=!!r[k];if(['easy','normal','hard'].includes(r.ai))nextRules.ai=r.ai;}}catch(e){}
+
+function newGame(humans){
+  engineNewGame(humans,{...nextRules});
+  let seen=false;try{seen=localStorage.getItem('komaroyale-seen')==='1';}catch(e){}
+  S.tutorial=!seen;
+}
+function onGameOver(){saveGame();}
+function onAfterStep(){render();}
+
+// ---------- 棋譜 ----------
+const GAMES_KEY='komaroyale-games',GAMES_MAX=30;
+
+function loadGames(){try{const g=JSON.parse(localStorage.getItem(GAMES_KEY)||'[]');return Array.isArray(g)?g:[];}catch(e){return [];}}
+function storeGames(list){for(let n=list.length;n>0;n--){try{localStorage.setItem(GAMES_KEY,JSON.stringify(list.slice(-n)));return true;}catch(e){}}return false;}
+function buildGame(){
+  const me=ME(),w=alive()[0];
+  const cause=me.alive?(S.over?'優勝':'中断'):(me.killer!=null?`${S.players[me.killer].name}に取られた`:'盤外に落ちた');
+  return {v:1,id:S.rec.id||(S.rec.id=Date.now()),date:new Date().toISOString(),rules:{...S.rules},
+    result:{done:!!S.over,winner:S.over&&w?w.id:null,rank:S.over||!me.alive?rankOf(me):null,turns:S.turn-1,kills:me.kills,cause},
+    frames:S.rec.frames,log:S.log.slice()};
+}
+function saveGame(){
+  if(!S.rec||S.saved||S.replay||S.turn<=1)return;
+  const list=loadGames().filter(g=>g.id!==S.rec.id);list.push(buildGame());
+  S.saved=storeGames(list.slice(-GAMES_MAX));renderGames();
+}
+function leaveGame(){
+  if(!S||S.replay||S.saved||!S.rec||S.turn<=1)return;
+  if(S.online)return;
+  if(!ME().alive){let g=0;while(!S.over&&g++<80)step(null,true);}
+  saveGame();
+}
+
+
+// ---------- リプレイ ----------
+let liveS=null,R=null,playTimer=null;
+function openReplay(g){
+  clearTimeout(autoTimer);autoTimer=null;stopPlay();
+  if(!liveS)liveS=S;
+  $('#bannerSlot').replaceChildren();
+  R={g,k:0,deg:g.frames[0].p.map(a=>a[2]*90)};
+  $('#rbar').hidden=false;$('#zonebar').hidden=true;
+  $('#rslider').max=g.frames.length-1;
+  showFrame(0);
+  document.querySelector('.stage-col').scrollIntoView({block:'start',behavior:'smooth'});
+}
+function showFrame(k){
+  const g=R.g;k=Math.max(0,Math.min(g.frames.length-1,k));R.k=k;
+  const f=g.frames[k],prevInspect=S?S.inspect:0;
+  S={turn:f.t,lvl:f.lvl,holes:f.holes,nextHole:f.nh,rules:g.rules,replay:true,
+    players:f.p.map((a,i)=>{let d=R.deg[i],tgt=a[2]*90,diff=((tgt-d)%360+540)%360-180;R.deg[i]=d+diff;
+      return {id:i,name:NAMES[i][0],color:NAMES[i][1],cpu:i>0,x:a[0],y:a[1],f:a[2],deg:R.deg[i],learned:a[3],promoted:!!a[4],alive:!!a[5],kills:a[6],edge:a[7],diedTurn:a[8],killer:a[9],base:a[10]||'fu',canPromo:!!a[11]};}),
+    loot:f.l.map(l=>({x:l[0],y:l[1],kind:l[2]})),log:g.log.slice(0,f.le),over:false,sel:null,spectate:true,
+    inspect:prevInspect,showDanger:false,tutorial:false,flash:null,acts:f.a||null};
+  render();
+}
+function closeReplay(){
+  stopPlay();if(!liveS)return;S=liveS;liveS=null;R=null;
+  $('#rbar').hidden=true;$('#zonebar').hidden=false;$('#intents').innerHTML='';render();
+}
+function stopPlay(){clearInterval(playTimer);playTimer=null;const b=$('#rplay');if(b)b.textContent='再生';}
+function togglePlay(){
+  if(playTimer){stopPlay();return;}
+  if(R.k>=R.g.frames.length-1)showFrame(0);
+  $('#rplay').textContent='停止';
+  playTimer=setInterval(()=>{if(R.k>=R.g.frames.length-1){stopPlay();return;}showFrame(R.k+1);},800);
+}
+function renderReplayBar(){
+  if(!S.replay)return;
+  const g=R.g,last=g.frames.length-1;
+  $('#rslider').value=R.k;
+  $('#rpos').textContent=R.k===last?`終局 (${g.result.turns}手)`:`${S.turn}手目 / ${g.result.turns}手`;
+  const ints=[];
+  if(S.acts&&R.k<last)for(const [id,a] of Object.entries(S.acts)){const p=S.players[id];if(!p||!p.alive)continue;
+    if(a[0]==='m')ints.push(`<div class="intent" style="--x:${a[1]};--y:${a[2]};--pc:${p.color}"></div>`);
+    else ints.push(`<div class="intent tag" style="--x:${p.x};--y:${p.y};--pc:${p.color}"><i>${a[0]==='r'?'転':'待'}</i></div>`);}
+  $('#intents').innerHTML=ints.join('');
+}
+function fmtDate(iso){const d=new Date(iso);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+function renderGames(){
+  const list=loadGames().slice().reverse(),el=$('#games');
+  if(!list.length){el.innerHTML='<li class="gempty">まだ記録がない。1局終えるとここに残る(このブラウザに最大30局)。</li>';return;}
+  el.innerHTML=list.map(g=>{const r=g.result,tags=[g.rules.pawn&&'轢',g.rules.pass&&'突',g.rules.final&&'決',g.rules.promo&&'成',g.rules.throne&&'玉'].filter(Boolean).join('')+(AI_LEVELS[g.rules.ai]?` ・ CPU ${AI_LEVELS[g.rules.ai]}`:'');
+    const head=r.cause==='優勝'?'<b class="gwin">優勝</b>':r.rank?`<b>${r.rank}位</b>`:'<b>中断</b>';
+    return `<li><div class="gmain">${head}<span>${r.turns}手・撃破${r.kills}・${r.cause==='優勝'||r.cause==='中断'?'':r.cause}</span></div>
+      <div class="gsub"><span>${fmtDate(g.date)}${tags?` ・ ルール[${tags}]`:''}</span><span class="gbtns"><button class="btn sm" data-play="${g.id}">振り返る</button><button class="btn sm" data-copy="${g.id}">データをコピー</button></span></div></li>`;}).join('');
+}
+$('#games').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const id=+(b.dataset.play||b.dataset.copy),g=loadGames().find(g=>g.id===id);if(!g)return;
+  if(b.dataset.play)openReplay(g);
+  else navigator.clipboard.writeText(JSON.stringify(g)).then(()=>{b.textContent='コピーした';},()=>{b.textContent='コピーできなかった';}).finally(()=>setTimeout(()=>{b.textContent='データをコピー';},1800));
+});
+$('#rprev').onclick=()=>{stopPlay();showFrame(R.k-1);};
+$('#rnext').onclick=()=>{stopPlay();showFrame(R.k+1);};
+$('#rplay').onclick=()=>togglePlay();
+$('#rclose').onclick=()=>closeReplay();
+$('#rslider').oninput=e=>{stopPlay();showFrame(+e.target.value);};
+document.addEventListener('keydown',e=>{if(!R||e.target.closest('input[type=checkbox]'))return;
+  if(e.key==='ArrowLeft'){e.preventDefault();stopPlay();showFrame(R.k-1);}
+  else if(e.key==='ArrowRight'){e.preventDefault();stopPlay();showFrame(R.k+1);}
+  else if(e.key==='Escape')closeReplay();});
+
+
+// ---------- オンライン対戦 (WebSocketサーバー) ----------
+// 対局はサーバーが進める。ここは表示と手の送信だけ。
+let WS=null,NET=null,wantOnline=false,pendingMsg=null,retryT=null,NET_MSG='',onlineHTML='';
+const meIdx=()=>S.meIdx||0;
+const ME=()=>S.players[meIdx()];
+const clean=t=>String(t??'').replace(/[<>&"'`\u0000-\u001f]/g,'').slice(0,40);
+const ss={get:k=>{try{return sessionStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{v==null?sessionStorage.removeItem(k):sessionStorage.setItem(k,v);}catch(e){}}};
+function myNick(){try{return localStorage.getItem('komaroyale-nick')||'';}catch(e){return '';}}
+function setNick(v){try{localStorage.setItem('komaroyale-nick',v);}catch(e){}}
+const canOnline=()=>/^https?:$/.test(location.protocol)&&'WebSocket' in window;
+function mySubmitted(){
+  if(!S||!S.online||!NET)return false;
+  return (S.sub||[]).includes(meIdx())||!!(NET.myAct&&NET.myAct.g===S.g&&NET.myAct.t===S.turn);
+}
+function wsSend(m){
+  if(WS&&WS.readyState===1){WS.send(JSON.stringify(m));return true;}
+  pendingMsg=m;connect();return false;
+}
+function connect(){
+  if(!canOnline())return;
+  if(WS&&(WS.readyState===0||WS.readyState===1))return;
+  wantOnline=true;
+  WS=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+  WS.onopen=()=>{
+    const tk=ss.get('koma-token');
+    if(tk&&!pendingMsg)WS.send(JSON.stringify({type:'hello',token:tk}));
+    if(pendingMsg){WS.send(JSON.stringify(pendingMsg));pendingMsg=null;}
+    renderOnline(true);
+  };
+  WS.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(err){return;}onServer(m);};
+  WS.onclose=()=>{WS=null;renderOnline(true);if(wantOnline&&ss.get('koma-token')){clearTimeout(retryT);retryT=setTimeout(connect,1500);}};
+}
+function onServer(m){
+  switch(m.type){
+    case 'welcome':ss.set('koma-token',m.token);NET_MSG='';break;
+    case 'room':
+      NET={...(NET||{}),code:clean(m.code),you:m.you,hostId:m.hostId,host:m.you===m.hostId,phase:m.phase,rules:m.rules,
+        members:(m.members||[]).map(x=>({id:x.id,nick:clean(x.nick)||'プレイヤー',connected:!!x.connected,seat:+x.seat}))};
+      renderOnline(true);syncRules();if(S&&S.online)render();
+      break;
+    case 'state':applyState(m);break;
+    case 'record':{
+      const g=m.game;if(!g||!Array.isArray(g.frames))break;
+      const me=m.you;const players=g.frames[g.frames.length-1].p;
+      const meRow=me>=0?players[me]:null;
+      const rank=meRow?(meRow[5]?1:1+players.filter(r=>r[5]||(r[8]>meRow[8])).length):null;
+      const rec={v:1,id:g.id,date:g.date,rules:g.rules,online:true,names:g.names,
+        result:{done:true,winner:g.winner,rank,turns:g.frames.length-1,kills:meRow?meRow[6]:0,
+          cause:me<0?'観戦':meRow[5]?'優勝':(meRow[9]!=null?`${clean(g.names[meRow[9]])}に取られた`:'盤外に落ちた')},
+        frames:g.frames,log:(g.log||[]).map(e=>({t:+e.t||0,m:clean(e.m).slice(0,80)}))};
+      const list=loadGames().filter(x=>x.id!==rec.id);list.push(rec);storeGames(list.slice(-GAMES_MAX));renderGames();
+      if(S&&S.online){S.serverRec=rec;S.saved=true;}
+      break;}
+    case 'noroom':ss.set('koma-token',null);wantOnline=false;NET=null;renderOnline(true);break;
+    case 'left':ss.set('koma-token',null);wantOnline=false;NET=null;if(WS)WS.close();if(S.online){newGame();S.tutorial=false;}render();renderOnline(true);syncRules();break;
+    case 'kicked':ss.set('koma-token',null);wantOnline=false;NET=null;onlineMsg(m.msg||'切断されました。');break;
+    case 'error':onlineMsg(m.msg||'エラーが起きました。');break;
+  }
+}
+function submitAct(a){
+  if(!S.online){step({0:a});return;}
+  NET.myAct={g:S.g,t:S.turn,a:packAct(a)};
+  wsSend({type:'move',...NET.myAct});
+  render();
+}
+function hostStart(){if(NET&&NET.host)wsSend({type:'start',rules:{...nextRules}});}
+function applyState(d){
+  if(!d||!Array.isArray(d.p)||d.p.length!==8)return;
+  if(S.replay)closeReplay();
+  const fresh=!S.online||S.g!==d.g;
+  if(!fresh&&d.t<S.turn)return;
+  const seat=+d.you;
+  const prevDeg=fresh?null:S.players.map(p=>p.deg);
+  const rec=fresh?{frames:[],id:d.g}:S.rec;
+  const newTurn=fresh||d.t!==S.turn;
+  const log=(d.log||[]).map(e=>({t:+e.t||0,m:clean(e.m).slice(0,80)}));
+  const rules={};for(const [,k] of RULE_IDS)rules[k]=!!(d.rules&&d.rules[k]);rules.ai=d.rules&&AI_LEVELS[d.rules.ai]?d.rules.ai:'normal';
+  const frame={t:d.t,lvl:+d.lvl||0,holes:(d.holes||[]).map(String),nh:d.nh?String(d.nh):null,le:log.length,p:d.p,l:Array.isArray(d.l)?d.l:[]};
+  if(newTurn){if(rec.frames.length&&d.pa)rec.frames[rec.frames.length-1].a=d.pa;rec.frames.push(frame);}
+  else rec.frames[rec.frames.length-1]=frame;
+  const keep=fresh?{}:{spectate:S.spectate,inspect:S.inspect,sel:newTurn?null:S.sel,serverRec:S.serverRec};
+  S={turn:+d.t,lvl:frame.lvl,holes:frame.holes,nextHole:frame.nh,rules,online:true,g:d.g,meIdx:seat>=0?seat:0,watching:seat<0,
+    players:d.p.map((a,i)=>{const deg0=prevDeg?prevDeg[i]:a[2]*90,diff=((a[2]*90-deg0)%360+540)%360-180;
+      return {id:i,name:clean(d.nm&&d.nm[i])||NAMES[i][0],color:NAMES[i][1],cpu:!(d.human&&d.human[i]),x:+a[0],y:+a[1],f:+a[2],deg:deg0+diff,learned:Array.isArray(a[3])?a[3].filter(k=>K[k]):[],promoted:!!a[4],alive:!!a[5],kills:+a[6]||0,edge:+a[7]||0,diedTurn:a[8],killer:a[9],base:K[a[10]]?a[10]:'fu',canPromo:!!a[11]};}),
+    loot:frame.l.filter(l=>K[l[2]]).map(l=>({x:+l[0],y:+l[1],kind:l[2]})),log,over:!!d.over,sel:null,spectate:false,inspect:0,showDanger:true,tutorial:false,flash:null,
+    rec,saved:true,sub:Array.isArray(d.sub)?d.sub:[],deadlineAt:Date.now()+(+d.dl||0),...keep};
+  if(S.watching)S.spectate=true;
+  render();syncRules();
+}
+function onlineMsg(t){NET_MSG=t;renderOnline(true);}
+function enterRoom(kind){
+  const nick=clean(($('#nick')?.value||myNick()||'').trim()).slice(0,12)||'プレイヤー';setNick(nick);
+  ss.set('koma-token',null);NET_MSG='';
+  if(kind==='create')wsSend({type:'create',nick,rules:{...nextRules}});
+  else{const c=($('#ocode').value||'').trim().toLowerCase();if(!/^[a-z0-9]{3,8}$/.test(c)){onlineMsg('部屋コードは英数字3〜8文字。');return;}wsSend({type:'join',code:c,nick});}
+  wantOnline=true;
+}
+function renderOnline(force){
+  const el=$('#onl');if(!el)return;
+  let h;
+  if(!canOnline())h='<p class="onote">オンライン対戦はサーバーから開いた時だけ使える(ファイルを直接開いた場合は使えない)。</p>';
+  else if(!NET){
+    h=`<label class="ofield"><span>ニックネーム</span><input id="nick" maxlength="12" value="${clean(myNick())}" placeholder="プレイヤー"></label>
+      <div class="orow"><button class="btn go" data-o="create">部屋を作る</button></div>
+      <div class="orow"><input id="ocode" maxlength="8" placeholder="部屋コード" autocomplete="off" value="${clean(new URLSearchParams(location.search).get('room')||'')}"><button class="btn" data-o="join">参加する</button></div>
+      ${NET_MSG?`<p class="oerr">${clean(NET_MSG)}</p>`:''}
+      ${WS&&WS.readyState===0?'<p class="onote">サーバーに接続中…</p>':''}
+      <p class="onote">部屋を作って、表示される招待リンクを友達に送る。ログインは不要。足りない席はCPUが埋める(最大8人)。</p>`;
+  }else{
+    const playing=S.online&&!S.over;
+    const rows=NET.members.map(x=>{const seat=x.seat;
+      const st=!x.connected?'<i class="out">切断中</i>':S.online&&seat>=0&&S.players[seat]?(S.players[seat].alive?((S.sub||[]).includes(seat)?'<i class="ok">提出済み</i>':'<i>考え中</i>'):'<i class="out">脱落</i>'):(S.online?'<i>観戦</i>':'');
+      return `<li><span class="dot" style="background:${seat>=0?NAMES[seat][1]:'#777'}"></span><b>${x.nick}</b>${x.id===NET.hostId?'<em>ホスト</em>':''}${x.id===NET.you?'<em>あなた</em>':''}<span class="ost">${st}</span></li>`;}).join('');
+    const link=`${location.origin}/?room=${NET.code}`;
+    h=`<div class="ocode"><span>部屋コード</span><b>${NET.code}</b><button class="btn sm" data-o="copy">招待リンクをコピー</button></div>
+      <p class="onote olink">${clean(link).replace(/&amp;/g,'&')}</p>
+      ${WS&&WS.readyState===1?'':'<p class="oerr">サーバーとの接続が切れています。再接続中…</p>'}
+      <ul class="omem">${rows}</ul>
+      ${playing&&ME().alive&&!S.watching?'<p class="ocount" id="ocount"></p>':''}
+      <div class="orow">${NET.host?`<button class="btn go" data-o="start">${NET.phase==='lobby'?'対局開始':'次の局を始める'}</button>`:(NET.phase==='play'?'':'<span class="onote">ホストの開始を待っています。</span>')}<button class="btn" data-o="leave">部屋を出る</button></div>
+      ${NET.host?'<p class="onote">ルールはあなたの「試験ルール」の設定で始まる。1手の制限時間は45秒。</p>':''}`;
+  }
+  if(force||h!==onlineHTML){onlineHTML=h;el.innerHTML=h;}
+}
+$('#onl').addEventListener('click',e=>{
+  const b=e.target.closest('[data-o]');if(!b)return;const o=b.dataset.o;
+  if(o==='create'||o==='join')enterRoom(o);
+  else if(o==='leave')wsSend({type:'leave'});
+  else if(o==='start')hostStart();
+  else if(o==='copy'){const link=`${location.origin}/?room=${NET.code}`;
+    const done=t=>{b.textContent=t;setTimeout(()=>{b.textContent='招待リンクをコピー';},1500);};
+    if(navigator.clipboard)navigator.clipboard.writeText(link).then(()=>done('コピーした'),()=>done('下のリンクを選択してコピー'));else done('下のリンクを選択してコピー');}
+});
+$('#onl').addEventListener('change',e=>{if(e.target.id==='nick'){const v=clean(e.target.value.trim()).slice(0,12);setNick(v);if(NET)wsSend({type:'nick',nick:v});}});
+setInterval(()=>{const c=$('#ocount');if(c&&S&&S.online&&!S.over){const left=Math.max(0,Math.ceil(((S.deadlineAt||0)-Date.now())/1000));c.textContent=`残り ${left} 秒`;}},1000);
+if(canOnline()&&ss.get('koma-token'))connect();
+
+
+// ---------- view ----------
+const grid=$('#grid'),layer=$('#layer');
+grid.innerHTML=Array.from({length:N*N},(_,i)=>`<button class="cell" data-i="${i}" aria-label="${i%N+1}列${(i/N|0)+1}段"></button>`).join('');
+const cells=[...grid.children];
+
+function render(){
+  const me=ME(),occ=occMap(),live=me.alive&&!S.over&&!S.replay&&!mySubmitted();
+  renderReplayBar();if(!S.replay)$('#intents').innerHTML='';
+  const myReach=live?reach(me,occ):[];
+  const rk=new Map(myReach.map(r=>[key(r.x,r.y),r]));
+  const th=new Map();
+  if(S.showDanger&&live)for(const q of alive())if(q!==me)for(const r of reach(q,occ)){const k=key(r.x,r.y);th.set(k,(th.get(k)||0)+1);}
+  const fi=fallInfo(),ns=fi?fi.at:null,warnOn=ns!=null&&ns-S.turn<=1;
+  cells.forEach((c,i)=>{
+    const x=i%N,y=i/N|0,k=key(x,y),r=ring(x,y);
+    let cls='cell';
+    if(r<S.lvl||S.holes.includes(k))cls+=' dead';
+    else if(fi&&(fi.kind==='ring'?r===S.lvl:k===S.nextHole))cls+=warnOn?' warn':' fall';
+    if(throneOn()&&r===5)cls+=' throne';
+    const t=th.get(k);if(t)cls+=t>1?' th2':' th1';
+    if(rk.has(k))cls+=(occ.has(k)?' hint atk':' hint')+(rk.get(k).through?' far':'');
+    if(S.sel&&S.sel.type==='move'&&S.sel.x===x&&S.sel.y===y)cls+=' sel';
+    if(c.className!==cls)c.className=cls;
+    const l=S.loot.find(l=>l.x===x&&l.y===y);
+    const html=l?`<span class="loot">${K[l.kind].k}</span>`:'';
+    if(c.innerHTML!==html)c.innerHTML=html;
+  });
+  for(const p of S.players){
+    let el=pieceEls[p.id];
+    if(!el){el=document.createElement('div');el.className='pc';el.innerHTML='<div class="k"><span></span></div>';layer.appendChild(el);pieceEls[p.id]=el;}
+    let deg=p.deg;
+    if(p.id===meIdx()&&S.sel&&S.sel.type==='rot'){const d=(S.sel.f-p.f+4)%4;deg+=d===3?-90:d*90;}
+    el.style.setProperty('--x',p.x);el.style.setProperty('--y',p.y);el.style.setProperty('--pc',p.color);
+    el.firstChild.style.setProperty('--deg',deg+'deg');
+    el.querySelector('span').textContent=K[topKind(p)].k;
+    el.classList.toggle('me',p.id===meIdx());el.classList.toggle('promo',p.promoted);el.classList.toggle('bare',isBare(p));el.classList.toggle('gone',!p.alive);
+  }
+  if(!ghostEl){ghostEl=document.createElement('div');ghostEl.className='pc ghost';ghostEl.innerHTML='<div class="k"><span></span></div>';layer.appendChild(ghostEl);}
+  const gs=S.sel&&S.sel.type==='move';
+  ghostEl.hidden=!gs;
+  if(gs){ghostEl.style.setProperty('--x',S.sel.x);ghostEl.style.setProperty('--y',S.sel.y);ghostEl.style.setProperty('--pc',me.color);
+    ghostEl.firstChild.style.setProperty('--deg',me.deg+'deg');ghostEl.querySelector('span').textContent=K[topKind(me)].k;}
+
+  $('#sTurn').textContent=S.turn;
+  $('#sAlive').textContent=`${alive().length}/8`;
+  const sh=$('#sShrink'),zb=$('#zonebar');
+  $('#zlabel').textContent=fi&&fi.kind==='cell'?'次のマスが落ちるまで':'外周が落ちるまで';
+  if(S.over){sh.textContent='終局';$('#pips').innerHTML='';zb.classList.remove('hot');}
+  else if(ns==null){sh.textContent='最終盤';$('#pips').innerHTML='';zb.classList.add('hot');}
+  else{
+    const total=fi.total,left=ns-S.turn+1;
+    sh.textContent=left===1?'この手の後！':`あと${left}手`;
+    $('#pips').innerHTML=Array.from({length:total},(_,i)=>`<i class="pip${i<left?' on':''}"></i>`).join('');
+    zb.classList.toggle('hot',left<=2);
+  }
+  if(S.flash){const b=document.createElement('div');b.className='banner';b.textContent=S.flash;$('#bannerSlot').replaceChildren(b);S.flash=null;}
+
+  $('#moves').innerHTML=movesOf(me).map(k=>`<span class="chip${k==='ou'||K[k].pr?' promo':''}"><b>${K[k].k}</b>${K[k].d}</span>`).join('')
+    +(me.learned.length<2?`<span class="chip empty">空き枠 ${2-me.learned.length}</span>`:'');
+  const meta=[`向き <strong>${DIRNAME[me.f]}</strong>`,`撃破 <strong>${me.kills}</strong>`];
+  if(me.alive&&!me.promoted&&!me.canPromo&&inZone(me))meta.push(`成りまで <strong>${me.edge}/3</strong>${throneOn()?'(玉座)':''}`);
+  const canP=live&&me.canPromo&&!me.promoted;
+  $('#bPromo').hidden=!canP;
+  if(canP)$('#bPromo').innerHTML=`<b>成る</b><span>${promoPreview(me)}。手番は使わない。成らずに取っておくこともできる</span>`;
+  if(me.promoted)meta.push('<strong>成り済み</strong>');
+  if(me.alive&&isBare(me))meta.push('<strong class="baretag">素の歩</strong> 同時に入れば必ず勝つ');
+  $('#meta').innerHTML=meta.map(m=>`<span>${m}</span>`).join('');
+
+  const sel=S.sel;let txt='盤の青い点をタップして移動先を選ぶか、下のボタンで向きを変える。';
+  if(sel){
+    if(sel.type==='move'){const q=occ.get(key(sel.x,sel.y));txt=q?`${q.name}のマスへ攻撃(${K[sel.kind].k}の動き)。`:`${K[sel.kind].k}の動きで移動。`;
+      const e=rk.get(key(sel.x,sel.y));
+      if(e&&e.through){const bl=e.path.map(k=>occ.get(k)).filter(Boolean).map(q=>q.name).join('・');txt+=`読みの一手: ${bl}がその場に残ると、手前で止まる。`;}
+      txt+='もう一度タップでも決定。';}
+    else if(sel.type==='rot')txt=`${DIRNAME[sel.f]}を向く(この手は動かない)`;
+    else txt='この場に留まる';
+  }
+  if(!live)txt=S.replay?'振り返り中。上のバーで1手ずつ進める。':S.over?'対局終了':(me.alive&&mySubmitted())?'提出済み。ほかのプレイヤーを待っています。':'観戦中';
+  renderOnline();
+  $('#selline').textContent=txt;
+  const lootAt=sel&&sel.type==='move'&&live?S.loot.find(l=>l.x===sel.x&&l.y===sel.y):null;
+  const showPick=!!(S.rules.pawn&&lootAt&&wouldLearn(me,lootAt.kind));
+  $('#pickrow').hidden=!showPick;
+  if(showPick){$('#pick').checked=!!sel.pick;$('#picktxt').textContent=`「${K[lootAt.kind].k}」を拾う`+(isBare(me)?'(素の歩ではなくなる)':'');}
+  $('#go').disabled=!(live&&sel);
+  const rs=sel&&sel.type==='rot'?sel.f:null;
+  $('#bL').setAttribute('aria-pressed',rs===(me.f+3)%4);$('#bR').setAttribute('aria-pressed',rs===(me.f+1)%4);
+  $('#bU').setAttribute('aria-pressed',rs===(me.f+2)%4);$('#bW').setAttribute('aria-pressed',!!sel&&sel.type==='wait');
+  for(const b of ['#bL','#bR','#bU','#bW'])$(b).disabled=!live;
+  $('#danger').checked=S.showDanger;
+
+  const ip=S.players[S.inspect]||me;
+  $('#inspect').innerHTML=`<span class="dot" style="background:${ip.color}"></span><strong>${ip.name}</strong> `
+    +(ip.alive?`動き: ${movesOf(ip).map(k=>K[k].k).join('・')} / 向き${DIRNAME[ip.f]} / 撃破${ip.kills}`:`脱落(${rankOf(ip)}位)`)
+    +(ip.id!==meIdx()?'':' <span>(他の駒をタップで情報表示)</span>')
+    +(ip.id!==meIdx()&&ip.alive&&me.alive?(()=>{const c=cmp(me,ip),v=c>0?['win','勝てる']:c<0?['lose','負ける']:['tie','両方弾かれる'];
+      return `<div class="verdict ${v[0]}">同時に入ったら <b>${v[1]}</b><span>${whyCmp(me,ip)}</span></div><div class="vnote">${ip.name}がその場に留まっていれば、強さに関係なく取れる。</div>`;})():'');
+
+  $('#log').innerHTML=S.log.slice(-40).reverse().map(e=>`<li><span class="t">${e.t?e.t+'手':'—'}</span><span>${e.m}</span></li>`).join('');
+
+  const ov=$('#overlay'),card=$('#card');
+  if(S.replay)ov.hidden=true;
+  else if(S.tutorial){
+    ov.hidden=false;
+    card.innerHTML=`<div class="big">遊び方</div><ol class="howto">
+      <li>あなたは<b>青く光る駒</b>。全員同時に1手ずつ動く。</li>
+      <li><b>青い点</b>をタップで移動。駒の向きが「前」。向きを変えるのにも1手使う。</li>
+      <li>薄い駒を踏むと<b>その動きを覚える</b>。敵を取ると敵の動きを奪える。</li>
+      ${S.rules.pawn?'<li>何も覚えていない<b>素の歩</b>は、同じマスに同時に入れば必ず勝つ。拾うかどうかは選べる。</li>':''}
+      <li>赤い外周は数手後に<b>盤外</b>になる。上のゲージがゼロになる前に内側へ。</li>
+      ${S.rules.pass?'<li>飛・角・香は<b>駒の先まで</b>狙える(点線)。通り道の駒がその場に残っていたら手前で止まる。</li>':''}
+      ${S.rules.final?'<li>盤は3×3で止まり、その後は<b>1マスずつ</b>落ちる。</li>':''}
+      ${S.rules.promo?'<li>成ると持っている動きが<b>将棋の成駒</b>になる(歩→と、銀→全、角→馬、飛→龍など)。成るかどうか、いつ成るかは選べる。</li>':''}
+      ${S.rules.final&&S.rules.throne?'<li>3×3になったら、成れる場所は<b>中央の玉座</b>だけ。3手居座ると成れる。</li>':''}
+      <li>最後の一駒になれば勝ち。</li></ol>
+      <div class="row"><button class="btn go" id="start">はじめる</button></div>`;
+    $('#start').onclick=()=>{S.tutorial=false;try{localStorage.setItem('komaroyale-seen','1');}catch(e){}render();};
+  }
+  else if(S.over||(!me.alive&&!S.spectate)){
+    ov.hidden=false;
+    const w=alive()[0];
+    let big,sub;
+    if(S.over){
+      if(w===me){big='優勝';sub=`最後の一駒。撃破${me.kills}。`;}
+      else{big=me.alive?'時間切れ':`${rankOf(me)}位`;sub=w?`勝者は${w.name}(撃破${w.kills})。`:'最後は相打ちで全滅。';}
+    }else{
+      const k=me.killer!=null?S.players[me.killer].name:null;
+      big=`${rankOf(me)}位で脱落`;sub=k?`${k}に取られた。`:'盤外に落ちた。';
+    }
+    card.innerHTML=`<div class="big">${big}</div><p>${sub}</p><div class="row">`
+      +(!S.over?'<button class="btn" id="spec">最後まで観戦</button>':'')
+      +'<button class="btn" id="review">振り返る</button>'
+      +(S.online&&!NET?.host?(S.over?'<p class="wait">ホストが次の局を始めるのを待っています。</p>':''):'<button class="btn go" id="again">もう一局</button>')+'</div>';
+    const ag=$('#again');if(ag)ag.onclick=()=>{if(S.online){hostStart();return;}clearTimeout(autoTimer);autoTimer=null;leaveGame();newGame();S.tutorial=false;render();syncRules();};
+    $('#review').onclick=()=>{if(!S.over)leaveGame();openReplay(S.serverRec||buildGame());};
+    const sp=$('#spec');if(sp)sp.onclick=()=>{S.spectate=true;render();};
+  }else ov.hidden=true;
+
+  if(!S.replay&&!S.online&&!me.alive&&S.spectate&&!S.over&&!autoTimer)autoTimer=setTimeout(()=>{autoTimer=null;step(null);},650);
+}
+
+grid.addEventListener('click',e=>{
+  const c=e.target.closest('.cell');if(!c)return;
+  const i=+c.dataset.i,x=i%N,y=i/N|0,me=ME(),occ=occMap();
+  const q=occ.get(key(x,y));if(q)S.inspect=q.id;
+  if(me.alive&&!S.over&&!S.replay&&!mySubmitted()){
+    if(S.sel&&S.sel.type==='move'&&S.sel.x===x&&S.sel.y===y){submitAct(S.sel);return;}
+    const r=reach(me,occ).find(r=>r.x===x&&r.y===y);
+    if(r)S.sel={type:'move',x,y,kind:r.kind,pick:true};
+  }
+  render();
+});
+const rotSel=d=>()=>{const me=ME();S.sel={type:'rot',f:(me.f+d)%4};render();};
+$('#bL').onclick=rotSel(3);$('#bR').onclick=rotSel(1);$('#bU').onclick=rotSel(2);
+$('#bW').onclick=()=>{S.sel={type:'wait'};render();};
+$('#pick').onchange=e=>{if(S.sel)S.sel.pick=e.target.checked;};
+function syncRules(){for(const [id,k] of RULE_IDS)$(id).checked=!!nextRules[k];
+  $('#rThrone').disabled=!nextRules.final;
+  $('#newg').disabled=!!(S&&S.online&&!(NET&&NET.host));
+  $('#rAi').value=nextRules.ai;
+  const diff=RULE_IDS.some(([,k])=>!!nextRules[k]!==!!S.rules[k])||nextRules.ai!==(S.rules.ai||'normal');
+  $('#rnote').textContent=diff?'変更は次の局から。':'この局に適用中。';}
+$('#bPromo').onclick=()=>{const me=ME();if(!me.canPromo||me.promoted||S.replay)return;
+  if(S.online){wsSend({type:'promo',g:S.g});return;}
+  promote(me);render();};
+$('#rAi').onchange=e=>{nextRules.ai=e.target.value;try{localStorage.setItem(RULE_KEY,JSON.stringify(nextRules));}catch(e){}syncRules();};
+for(const [id,k] of RULE_IDS)$(id).onchange=e=>{nextRules[k]=e.target.checked;try{localStorage.setItem(RULE_KEY,JSON.stringify(nextRules));}catch(e){}syncRules();};
+$('#rBase').onclick=()=>{nextRules={pawn:false,final:false,pass:false,promo:false,throne:false,ai:nextRules.ai};try{localStorage.setItem(RULE_KEY,JSON.stringify(nextRules));}catch(e){}syncRules();};
+$('#newg').onclick=()=>{if(S.online){if(NET&&NET.host)hostStart();return;}closeReplay();clearTimeout(autoTimer);autoTimer=null;leaveGame();newGame();S.tutorial=false;render();syncRules();};
+$('#help').onclick=()=>{S.tutorial=true;render();};
+$('#go').onclick=()=>{if(S.sel)submitAct(S.sel);};
+$('#danger').onchange=e=>{S.showDanger=e.target.checked;render();};
+
+function boot(data){
+  if(data&&data.S&&data.S.players&&data.S.rules&&data.S.rec&&!data.S.online)S=data.S;else newGame();
+  render();syncRules();renderGames();
+}
+boot({});
+</script>
+</body>
+</html>

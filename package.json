@@ -1,0 +1,15 @@
+{
+  "name": "koma-royale",
+  "version": "0.1.0",
+  "private": true,
+  "description": "駒ロワ — 将棋の駒1つ＝プレイヤー1人の同時ターン制バトルロイヤル",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node test/engine.test.js && node test/server.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
